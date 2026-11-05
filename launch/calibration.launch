@@ -1,0 +1,41 @@
+<launch>
+  <arg name="mid360_msg_topic" default="/livox/lidar"/>
+  <arg name="start_converter" default="true"/>
+  <arg name="parent_pc_topic" default="/livox/lidar_pointcloud2"/>
+  <arg name="algorithm" default="icp"/>
+  <arg name="child_pc_topic" default="/left_rslidar_points"/>
+  <arg name="initial_pose" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="sync_slop" default="0.05"/>
+  <arg name="broadcast_tf" default="true"/>
+  <arg name="max_iteration" default="$(eval 100 if arg('algorithm') == 'icp' else 10)"/>
+  <arg name="transform_epsilon" default="$(eval 1e-9 if arg('algorithm') == 'icp' else 0.001)"/>
+  <arg name="max_coorespondence_distance" default="0.05"/>
+  <arg name="euclidean_fitness_epsilon" default="0.5"/>
+  <arg name="ransac_outlier_rejection_threshold" default="1.1"/>
+  <arg name="leaf_size" default="0.2"/>
+  <arg name="step_size" default="0.05"/>
+  <arg name="resolution" default="0.5"/>
+
+  <node if="$(arg start_converter)" pkg="pointcloud_fusion" type="mid360_to_pointcloud2"
+        name="mid360_to_pointcloud2" output="screen">
+    <param name="input_topic" value="$(arg mid360_msg_topic)"/>
+    <param name="output_topic" value="$(arg parent_pc_topic)"/>
+  </node>
+  <!-- The original input/source is the reference. Registration maps input/target into it. -->
+  <node pkg="pointcloud_fusion" type="multi_lidar_calibration_$(arg algorithm)_node"
+        name="multi_lidar_calibration" output="screen" required="true">
+    <rosparam param="initial_pose" subst_value="true">$(arg initial_pose)</rosparam>
+    <param name="sync_slop" value="$(arg sync_slop)" type="double"/>
+    <param name="broadcast_tf" value="$(arg broadcast_tf)"/>
+    <param name="max_iteration" value="$(arg max_iteration)"/>
+    <param name="transform_epsilon" value="$(arg transform_epsilon)" type="double"/>
+    <param name="max_coorespondence_distance" value="$(arg max_coorespondence_distance)" type="double"/>
+    <param name="euclidean_fitness_epsilon" value="$(arg euclidean_fitness_epsilon)" type="double"/>
+    <param name="ransac_outlier_rejection_threshold" value="$(arg ransac_outlier_rejection_threshold)" type="double"/>
+    <param name="leaf_size" value="$(arg leaf_size)" type="double"/>
+    <param name="step_size" value="$(arg step_size)" type="double"/>
+    <param name="resolution" value="$(arg resolution)" type="double"/>
+    <remap from="~input/source_pointcloud" to="$(arg parent_pc_topic)"/>
+    <remap from="~input/target_pointcloud" to="$(arg child_pc_topic)"/>
+  </node>
+</launch>

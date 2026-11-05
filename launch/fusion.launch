@@ -1,0 +1,82 @@
+<launch>
+  <arg name="mid360_msg_topic" default="/livox/lidar"/>
+  <arg name="start_converter" default="true"/>
+  <arg name="parent_pc_topic" default="/livox/lidar_pointcloud2"/>
+  <arg name="child_pc_topic1" default="/left_rslidar_points"/>
+  <arg name="child_pc_topic2" default="/front_rslidar_points"/>
+  <arg name="child_pc_topic3" default="/right_rslidar_points"/>
+  <arg name="filtered_parent_pc_topic" default="/livox/lidar_filter"/>
+  <arg name="filtered_child_pc_topic1" default="/left_rslidar_points_filter"/>
+  <arg name="filtered_child_pc_topic2" default="/front_rslidar_points_filter"/>
+  <arg name="filtered_child_pc_topic3" default="/right_rslidar_points_filter"/>
+  <arg name="config" default="$(find pointcloud_fusion)/config/fusion.yaml"/>
+  <arg name="fusion_pc_topic" default="/pointcloud_fused"/>
+  <arg name="fusion_pc_frame_id" default="livox_frame"/>
+  <arg name="extrinsics_ready" default="false"/>
+  <arg name="use_filtered" default="true"/>
+  <arg name="start_filter" default="$(arg use_filtered)"/>
+  <arg name="max_range" default="3.0"/>
+  <arg name="ground_z_threshold" default="0.0"/>
+  <arg name="enable_range_filter" default="false"/>
+  <arg name="enable_ground_filter" default="false"/>
+  <arg name="ground_filter_topics" default="['$(arg child_pc_topic1)', '$(arg child_pc_topic2)', '$(arg child_pc_topic3)']"/>
+  <arg name="set_params" default="false"/>
+  <arg name="open_tuning_gui" default="false"/>
+  <arg name="publish_scan" default="true"/>
+  <arg name="scan_topic" default="/scan"/>
+  <arg name="scan_target_frame" default=""/>
+  <arg name="scan_time" default="0.1"/>
+
+  <include if="$(arg start_filter)" file="$(find pointcloud_fusion)/launch/filter.launch">
+    <arg name="mid360_msg_topic" value="$(arg mid360_msg_topic)"/>
+    <arg name="start_converter" value="$(arg start_converter)"/>
+    <arg name="parent_pc_topic" value="$(arg parent_pc_topic)"/>
+    <arg name="child_pc_topic1" value="$(arg child_pc_topic1)"/>
+    <arg name="child_pc_topic2" value="$(arg child_pc_topic2)"/>
+    <arg name="child_pc_topic3" value="$(arg child_pc_topic3)"/>
+    <arg name="filtered_parent_pc_topic" value="$(arg filtered_parent_pc_topic)"/>
+    <arg name="filtered_child_pc_topic1" value="$(arg filtered_child_pc_topic1)"/>
+    <arg name="filtered_child_pc_topic2" value="$(arg filtered_child_pc_topic2)"/>
+    <arg name="filtered_child_pc_topic3" value="$(arg filtered_child_pc_topic3)"/>
+    <arg name="max_range" value="$(arg max_range)"/>
+    <arg name="ground_z_threshold" value="$(arg ground_z_threshold)"/>
+    <arg name="enable_range_filter" value="$(arg enable_range_filter)"/>
+    <arg name="enable_ground_filter" value="$(arg enable_ground_filter)"/>
+    <arg name="ground_filter_topics" value="$(arg ground_filter_topics)"/>
+  </include>
+  <group unless="$(arg start_filter)">
+    <node if="$(arg start_converter)" pkg="pointcloud_fusion" type="mid360_to_pointcloud2"
+          name="mid360_to_pointcloud2" output="screen">
+      <param name="input_topic" value="$(arg mid360_msg_topic)"/>
+      <param name="output_topic" value="$(arg parent_pc_topic)"/>
+    </node>
+  </group>
+
+  <node pkg="pointcloud_fusion" type="pointcloud_fusion_node" name="pointcloud_fusion"
+        output="screen" required="true">
+    <rosparam command="load" file="$(arg config)"/>
+    <param name="topics/parent_pc_topic" value="$(eval arg('filtered_parent_pc_topic') if arg('use_filtered') else arg('parent_pc_topic'))"/>
+    <param name="topics/child_pc_topic1" value="$(eval arg('filtered_child_pc_topic1') if arg('use_filtered') else arg('child_pc_topic1'))"/>
+    <param name="topics/child_pc_topic2" value="$(eval arg('filtered_child_pc_topic2') if arg('use_filtered') else arg('child_pc_topic2'))"/>
+    <param name="topics/child_pc_topic3" value="$(eval arg('filtered_child_pc_topic3') if arg('use_filtered') else arg('child_pc_topic3'))"/>
+    <param name="topics/fusion_pc_topic" value="$(arg fusion_pc_topic)"/>
+    <param name="topics/fusion_pc_frame_id" value="$(arg fusion_pc_frame_id)" type="string"/>
+    <param name="extrinsics_ready" value="$(arg extrinsics_ready)"/>
+    <param name="set_dynamic_params" value="$(arg set_params)"/>
+  </node>
+
+  <include if="$(arg publish_scan)" file="$(find lm_bringup)/launch/PointsCloud2toLaserscan.launch">
+    <arg name="cloud_topic" value="$(arg fusion_pc_topic)"/>
+    <arg name="scan_topic" value="$(arg scan_topic)"/>
+    <arg name="target_frame" value="$(arg scan_target_frame)"/>
+    <arg name="scan_time" value="$(arg scan_time)"/>
+  </include>
+
+  <group if="$(arg open_tuning_gui)">
+    <node pkg="rviz" type="rviz" name="fusion_rviz"
+          args="-d $(find pointcloud_fusion)/rviz/fusion.rviz">
+      <remap from="/pointcloud_fused" to="$(arg fusion_pc_topic)"/>
+    </node>
+    <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="fusion_tuning"/>
+  </group>
+</launch>

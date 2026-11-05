@@ -1,0 +1,17 @@
+fusion_lidar_num: 4
+sync_slop: 0.05
+sync_queue_size: 10
+
+set_params_tf: true
+set_params_external_bounds: true
+set_params_internal_bounds: false
+
+# Child-to-Livox extrinsics. Replace with the measured values before setting extrinsics_ready.
+# Translation in meters, RPY in radians, rotation Rz(yaw) * Ry(pitch) * Rx(roll).
+cpc1_to_ppc: {x: 0.0, y: 0.0, z: 0.0, roll: 0.0, pitch: 0.0, yaw: 0.0}  # left
+cpc2_to_ppc: {x: 0.0, y: 0.0, z: 0.0, roll: 0.0, pitch: 0.0, yaw: 0.0}  # front
+cpc3_to_ppc: {x: 0.0, y: 0.0, z: 0.0, roll: 0.0, pitch: 0.0, yaw: 0.0}  # right
+
+# Crop boxes in the parent frame. External keeps the interior. Internal removes it.
+external_bounds: {x_min: -50.0, x_max: 50.0, y_min: -50.0, y_max: 50.0, z_min: -5.0, z_max: 5.0}
+internal_bounds: {x_min: 0.0, x_max: 0.0, y_min: 0.0, y_max: 0.0, z_min: 0.0, z_max: 0.0}

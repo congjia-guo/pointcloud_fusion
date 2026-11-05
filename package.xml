@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>pointcloud_fusion</name>
+  <version>0.1.0</version>
+  <description>MID360 conversion, multi-lidar calibration, filtering and fusion for MOMA.</description>
+  <maintainer email="user@example.com">MOMA Patrol System maintainers</maintainer>
+  <license>Apache-2.0</license>
+  <license>MIT</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>dynamic_reconfigure</depend>
+  <depend>livox_ros_driver2</depend>
+  <depend>message_filters</depend>
+  <depend>pcl_conversions</depend>
+  <depend>pcl_ros</depend>
+  <depend>roscpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf</depend>
+  <exec_depend>lm_bringup</exec_depend>
+  <exec_depend>rqt_reconfigure</exec_depend>
+  <exec_depend>rviz</exec_depend>
+</package>

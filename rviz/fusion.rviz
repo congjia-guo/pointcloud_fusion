@@ -1,0 +1,21 @@
+Panels:
+  - Class: rviz/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz/Grid
+      Enabled: true
+      Name: Grid
+    - Class: rviz/PointCloud2
+      Enabled: true
+      Name: Fused points
+      Color Transformer: Intensity
+      Channel Name: intensity
+      Size (Pixels): 2
+      Topic: /pointcloud_fused
+  Global Options:
+    Fixed Frame: livox_frame
+  Tools:
+    - Class: rviz/Interact
+    - Class: rviz/MoveCamera
