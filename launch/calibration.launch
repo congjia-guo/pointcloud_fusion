@@ -5,7 +5,7 @@
   <arg name="algorithm" default="icp"/>
   <arg name="child_pc_topic" default="/left_rslidar_points"/>
   <arg name="initial_pose" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="sync_slop" default="0.05"/>
+  <arg name="sync_slop" default="1.0"/>
   <arg name="broadcast_tf" default="true"/>
   <arg name="max_iteration" default="$(eval 100 if arg('algorithm') == 'icp' else 10)"/>
   <arg name="transform_epsilon" default="$(eval 1e-9 if arg('algorithm') == 'icp' else 0.001)"/>

@@ -17,7 +17,7 @@ public:
   PointCloudFilter()
   {
     ros::NodeHandle private_nh("~");
-    private_nh.param("max_range", max_range_, 3.0);
+    private_nh.param("max_range", max_range_, 5.0);
     private_nh.param("ground_z_threshold", ground_z_threshold_, 0.0);
     private_nh.param("enable_range_filter", enable_range_, true);
     private_nh.param("enable_ground_filter", enable_ground_, true);

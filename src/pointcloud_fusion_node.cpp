@@ -126,13 +126,23 @@ private:
       }
     }
     transforms_[index] = childToParent(pose);
-    if (dynamic_params_) {
-      auto& server = extrinsics_servers_[index];
-      server.reset(new ExtrinsicsServer(parameters));
-      server->setCallback([this, index](Extrinsics& value, uint32_t) {
-        transforms_[index] = childToParent(value);
-      });
+    if (!dynamic_params_) {
+      return;
     }
+    // Server construction clamps the loaded parameters before invoking callbacks.
+    // Keep the calibrated transform if the original tuning sliders cannot represent it.
+    Extrinsics clamped = pose;
+    clamped.__clamp__();
+    if (clamped.x != pose.x || clamped.y != pose.y || clamped.z != pose.z ||
+        clamped.roll != pose.roll || clamped.pitch != pose.pitch || clamped.yaw != pose.yaw) {
+      ROS_WARN("Online tuning disabled for %s: YAML extrinsics are outside the slider limits", name.c_str());
+      return;
+    }
+    auto& server = extrinsics_servers_[index];
+    server.reset(new ExtrinsicsServer(parameters));
+    server->setCallback([this, index](Extrinsics& value, uint32_t) {
+      transforms_[index] = childToParent(value);
+    });
   }
 
   void configureBounds(const std::string& name, Bounds& bounds,
@@ -144,18 +154,27 @@ private:
     if (!validBounds(bounds)) {
       throw std::runtime_error("Invalid bounds in " + name);
     }
-    if (dynamic_params_) {
-      server.reset(new BoundsServer(parameters));
-      Bounds* const current = &bounds;
-      server->setCallback([current](Bounds& value, uint32_t) {
-        if (validBounds(value)) {
-          *current = value;
-        } else {
-          ROS_WARN("Rejected crop box with min greater than max");
-          value = *current;
-        }
-      });
+    if (!dynamic_params_) {
+      return;
     }
+    Bounds clamped = bounds;
+    clamped.__clamp__();
+    if (clamped.x_min != bounds.x_min || clamped.x_max != bounds.x_max ||
+        clamped.y_min != bounds.y_min || clamped.y_max != bounds.y_max ||
+        clamped.z_min != bounds.z_min || clamped.z_max != bounds.z_max) {
+      ROS_WARN("Online tuning disabled for %s: YAML bounds are outside the slider limits", name.c_str());
+      return;
+    }
+    server.reset(new BoundsServer(parameters));
+    Bounds* const current = &bounds;
+    server->setCallback([current](Bounds& value, uint32_t) {
+      if (validBounds(value)) {
+        *current = value;
+      } else {
+        ROS_WARN("Rejected crop box with min greater than max");
+        value = *current;
+      }
+    });
   }
 
   void fuse(const CloudPtr& parent, const CloudPtr& first, const CloudPtr& second, const CloudPtr& third)

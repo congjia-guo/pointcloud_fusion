@@ -21,7 +21,7 @@ MultiLidarCalibrationNdt::MultiLidarCalibrationNdt()
   sync_(SyncPolicy(10), pointcloud_source_sub_, pointcloud_target_sub_)
 {
   double sync_slop;
-  pnh_.param("sync_slop", sync_slop, 0.05);
+  pnh_.param("sync_slop", sync_slop, 1.0);
   pnh_.param("broadcast_tf", broadcast_tf_, true);
   if (!std::isfinite(sync_slop) || sync_slop <= 0.0) {
     throw std::runtime_error("sync_slop must be positive and finite");
