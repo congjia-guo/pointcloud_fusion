@@ -1,0 +1,49 @@
+<launch>
+  <arg name="mid360_msg_topic" default="/livox/lidar"/>
+  <arg name="start_converter" default="true"/>
+  <arg name="parent_pc_topic" default="/livox/lidar_pointcloud2"/>
+  <arg name="child_pc_topic1" default="/left_rslidar_points"/>
+  <arg name="child_pc_topic2" default="/front_rslidar_points"/>
+  <arg name="child_pc_topic3" default="/right_rslidar_points"/>
+  <arg name="config" default="$(find pointcloud_fusion)/config/fusion.yaml"/>
+  <arg name="fusion_pc_topic" default="/pointcloud_fused"/>
+  <arg name="fusion_pc_frame_id" default="livox_frame"/>
+  <arg name="extrinsics_ready" default="false"/>
+  <arg name="enable_filter" default="true"/>
+  <arg name="max_range" default="3.0"/>
+  <arg name="ground_z_threshold" default="0.0"/>
+  <arg name="enable_range_filter" default="true"/>
+  <arg name="enable_ground_filter" default="true"/>
+  <arg name="ground_filter_topics" default="['$(arg child_pc_topic1)', '$(arg child_pc_topic2)', '$(arg child_pc_topic3)']"/>
+  <arg name="set_params" default="true"/>
+  <arg name="open_tuning_gui" default="true"/>
+  <arg name="publish_scan" default="true"/>
+  <arg name="scan_topic" default="/scan"/>
+  <arg name="scan_target_frame" default=""/>
+  <arg name="scan_time" default="0.1"/>
+
+  <include file="$(find pointcloud_fusion)/launch/fusion.launch">
+    <arg name="mid360_msg_topic" value="$(arg mid360_msg_topic)"/>
+    <arg name="start_converter" value="$(arg start_converter)"/>
+    <arg name="parent_pc_topic" value="$(arg parent_pc_topic)"/>
+    <arg name="child_pc_topic1" value="$(arg child_pc_topic1)"/>
+    <arg name="child_pc_topic2" value="$(arg child_pc_topic2)"/>
+    <arg name="child_pc_topic3" value="$(arg child_pc_topic3)"/>
+    <arg name="config" value="$(arg config)"/>
+    <arg name="fusion_pc_topic" value="$(arg fusion_pc_topic)"/>
+    <arg name="fusion_pc_frame_id" value="$(arg fusion_pc_frame_id)"/>
+    <arg name="extrinsics_ready" value="$(arg extrinsics_ready)"/>
+    <arg name="enable_filter" value="$(arg enable_filter)"/>
+    <arg name="max_range" value="$(arg max_range)"/>
+    <arg name="ground_z_threshold" value="$(arg ground_z_threshold)"/>
+    <arg name="enable_range_filter" value="$(arg enable_range_filter)"/>
+    <arg name="enable_ground_filter" value="$(arg enable_ground_filter)"/>
+    <arg name="ground_filter_topics" value="$(arg ground_filter_topics)"/>
+    <arg name="set_params" value="$(arg set_params)"/>
+    <arg name="open_tuning_gui" value="$(arg open_tuning_gui)"/>
+    <arg name="publish_scan" value="$(arg publish_scan)"/>
+    <arg name="scan_topic" value="$(arg scan_topic)"/>
+    <arg name="scan_target_frame" value="$(arg scan_target_frame)"/>
+    <arg name="scan_time" value="$(arg scan_time)"/>
+  </include>
+</launch>

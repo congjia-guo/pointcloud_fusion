@@ -10,7 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(PCL REQUIRED COMPONENTS common filters registration)
 
-generate_dynamic_reconfigure_options(config/Extrinsics.cfg config/Bounds.cfg)
+generate_dynamic_reconfigure_options(config/Extrinsics.cfg config/Bounds.cfg config/Filter.cfg)
 catkin_package(CATKIN_DEPENDS
   dynamic_reconfigure livox_ros_driver2 message_filters pcl_conversions
   pcl_ros roscpp sensor_msgs tf
@@ -20,14 +20,13 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
 add_executable(mid360_to_pointcloud2 src/mid360_to_pointcloud2.cpp)
-add_executable(pointcloud_filter_node src/pointcloud_filter_node.cpp)
 add_executable(pointcloud_fusion_node src/pointcloud_fusion_node.cpp)
 add_executable(multi_lidar_calibration_icp_node
   src/multi_lidar_calibration_icp.cpp src/multi_lidar_calibration_icp_node.cpp)
 add_executable(multi_lidar_calibration_ndt_node
   src/multi_lidar_calibration_ndt.cpp src/multi_lidar_calibration_ndt_node.cpp)
 
-set(nodes mid360_to_pointcloud2 pointcloud_filter_node pointcloud_fusion_node
+set(nodes mid360_to_pointcloud2 pointcloud_fusion_node
   multi_lidar_calibration_icp_node multi_lidar_calibration_ndt_node)
 foreach(node IN LISTS nodes)
   add_dependencies(${node} ${catkin_EXPORTED_TARGETS})

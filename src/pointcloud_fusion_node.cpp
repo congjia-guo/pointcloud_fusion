@@ -1,8 +1,10 @@
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include <boost/bind/bind.hpp>
 #include <dynamic_reconfigure/server.h>
@@ -16,6 +18,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pointcloud_fusion/BoundsConfig.h>
 #include <pointcloud_fusion/ExtrinsicsConfig.h>
+#include <pointcloud_fusion/FilterConfig.h>
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 
@@ -26,8 +29,10 @@ using CloudPtr = sensor_msgs::PointCloud2ConstPtr;
 using Points = pcl::PointCloud<pcl::PointXYZI>;
 using Bounds = pointcloud_fusion::BoundsConfig;
 using Extrinsics = pointcloud_fusion::ExtrinsicsConfig;
+using Filter = pointcloud_fusion::FilterConfig;
 using BoundsServer = dynamic_reconfigure::Server<Bounds>;
 using ExtrinsicsServer = dynamic_reconfigure::Server<Extrinsics>;
+using FilterServer = dynamic_reconfigure::Server<Filter>;
 using SyncPolicy = message_filters::sync_policies::ApproximateTime<Cloud, Cloud, Cloud, Cloud>;
 using Synchronizer = message_filters::Synchronizer<SyncPolicy>;
 
@@ -65,8 +70,6 @@ public:
     private_nh_.param("fusion_lidar_num", lidar_count_, 4);
     private_nh_.param("set_params_tf", transform_points_, true);
     private_nh_.param("extrinsics_ready", extrinsics_ready_, false);
-    private_nh_.param("set_params_external_bounds", crop_external_, false);
-    private_nh_.param("set_params_internal_bounds", crop_internal_, false);
     private_nh_.param("set_dynamic_params", dynamic_params_, false);
     private_nh_.param<std::string>("topics/fusion_pc_frame_id", expected_parent_frame_, "");
 
@@ -79,6 +82,7 @@ public:
       throw std::runtime_error("Expected 2 to 4 lidar inputs, sync_queue_size >= 2, and sync_slop > 0");
     }
 
+    configureFilters();
     configureBounds("external_bounds", external_bounds_, external_server_);
     configureBounds("internal_bounds", internal_bounds_, internal_server_);
     for (int i = 0; i < lidar_count_ - 1; ++i) {
@@ -91,6 +95,9 @@ public:
     std::string output;
     private_nh_.param<std::string>("topics/fusion_pc_topic", output, "/pointcloud_fused");
     publisher_ = nh_.advertise<Cloud>(output, 10);
+    std::vector<std::string> ground_topics{
+      "/left_rslidar_points", "/front_rslidar_points", "/right_rslidar_points"};
+    private_nh_.getParam("ground_filter_topics", ground_topics);
     for (int i = 0; i < lidar_count_; ++i) {
       const std::string parameter = i == 0 ? "topics/parent_pc_topic" :
         "topics/child_pc_topic" + std::to_string(i);
@@ -98,6 +105,7 @@ public:
       if (!private_nh_.getParam(parameter, topic) || topic.empty()) {
         throw std::runtime_error("Missing point cloud input parameter " + parameter);
       }
+      ground_filter_[i] = std::find(ground_topics.begin(), ground_topics.end(), topic) != ground_topics.end();
       subscribers_[i].subscribe(nh_, topic, queue_size);
     }
 
@@ -111,6 +119,69 @@ public:
   }
 
 private:
+  void configureFilters()
+  {
+    filters_ = Filter::__getDefault__();
+    filters_.__fromServer__(private_nh_);
+    if (!std::isfinite(filters_.max_range) || filters_.max_range <= 0.0 ||
+        !std::isfinite(filters_.ground_z_threshold)) {
+      throw std::runtime_error("Invalid filter range or ground threshold");
+    }
+    ROS_INFO("Cloud filtering %s", filters_.enable_filter ? "enabled" : "disabled");
+    if (!dynamic_params_) {
+      return;
+    }
+    Filter clamped = filters_;
+    clamped.__clamp__();
+    if (clamped.max_range != filters_.max_range ||
+        clamped.ground_z_threshold != filters_.ground_z_threshold) {
+      ROS_WARN("Filter tuning disabled: configured values are outside the slider limits");
+      return;
+    }
+    filter_server_.reset(new FilterServer(private_nh_));
+    filter_server_->setCallback([this](Filter& value, uint32_t) {
+      filters_ = value;
+      ROS_INFO("Cloud filtering %s, range=%s, ground=%s, max_range=%.3f, ground_z=%.3f",
+               value.enable_filter ? "enabled" : "disabled",
+               value.enable_range_filter ? "on" : "off",
+               value.enable_ground_filter ? "on" : "off",
+               value.max_range, value.ground_z_threshold);
+    });
+  }
+
+  void filterInputCloud(Points& cloud, bool remove_ground) const
+  {
+    if (!filters_.enable_filter) {
+      return;
+    }
+    Points filtered;
+    filtered.points.reserve(cloud.size());
+    for (const auto& point : cloud) {
+      if (!finitePoint(point)) {
+        continue;
+      }
+      if (filters_.enable_range_filter &&
+          (std::abs(point.x) > filters_.max_range || std::abs(point.y) > filters_.max_range ||
+           std::abs(point.z) > filters_.max_range)) {
+        continue;
+      }
+      if (filters_.enable_ground_filter && remove_ground &&
+          (point.z < filters_.ground_z_threshold || point.z > filters_.max_range)) {
+        continue;
+      }
+      filtered.push_back(point);
+    }
+    cloud.swap(filtered);
+  }
+
+  bool keepFusedPoint(const pcl::PointXYZI& point) const
+  {
+    return !filters_.enable_filter ||
+      (finitePoint(point) &&
+       (!filters_.set_params_external_bounds || inside(point, external_bounds_)) &&
+       (!filters_.set_params_internal_bounds || !inside(point, internal_bounds_)));
+  }
+
   void configureExtrinsics(int index)
   {
     const std::string name = "cpc" + std::to_string(index + 1) + "_to_ppc";
@@ -196,14 +267,14 @@ private:
       }
       Points cloud;
       pcl::fromROSMsg(*messages[i], cloud);
+      filterInputCloud(cloud, ground_filter_[i]);
       if (i > 0 && transform_points_) {
         pcl::transformPointCloud(cloud, cloud, transforms_[i - 1]);
       }
       for (const auto& point : cloud) {
-        if (finitePoint(point) &&
-            (!crop_external_ || inside(point, external_bounds_)) &&
-            (!crop_internal_ || !inside(point, internal_bounds_))) {
+        if (keepFusedPoint(point)) {
           fused.push_back(point);
+          fused.is_dense = fused.is_dense && finitePoint(point);
         }
       }
     }
@@ -219,7 +290,10 @@ private:
   std::unique_ptr<Synchronizer> sync_;
   std::string expected_parent_frame_;
   int lidar_count_;
-  bool transform_points_, extrinsics_ready_, crop_external_, crop_internal_, dynamic_params_;
+  bool transform_points_, extrinsics_ready_, dynamic_params_;
+  std::array<bool, 4> ground_filter_{};
+  Filter filters_;
+  std::unique_ptr<FilterServer> filter_server_;
   std::array<Eigen::Matrix4f, 3> transforms_;
   Bounds external_bounds_, internal_bounds_;
   std::array<std::unique_ptr<ExtrinsicsServer>, 3> extrinsics_servers_;

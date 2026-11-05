@@ -3,6 +3,13 @@ sync_slop: 0.05
 sync_queue_size: 10
 
 set_params_tf: true
+
+# Test launch enables this switch. Production fusion leaves all cloud filters disabled.
+enable_filter: false
+enable_range_filter: true
+enable_ground_filter: true
+max_range: 3.0
+ground_z_threshold: 0.0
 set_params_external_bounds: true
 set_params_internal_bounds: true
 
