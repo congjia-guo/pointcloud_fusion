@@ -27,6 +27,7 @@
         name="mid360_to_pointcloud2" output="screen">
     <param name="input_topic" value="$(arg mid360_msg_topic)"/>
     <param name="output_topic" value="$(arg parent_pc_topic)"/>
+    <param name="output_frame_id" value="$(arg fusion_pc_frame_id)" type="string"/>
   </node>
 
   <node pkg="pointcloud_fusion" type="pointcloud_fusion_node" name="pointcloud_fusion"

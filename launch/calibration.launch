@@ -2,6 +2,7 @@
   <arg name="mid360_msg_topic" default="/livox/lidar"/>
   <arg name="start_converter" default="true"/>
   <arg name="parent_pc_topic" default="/livox/lidar_pointcloud2"/>
+  <arg name="parent_pc_frame_id" default="mid_laser_link"/>
   <arg name="algorithm" default="icp"/>
   <arg name="child_pc_topic" default="/left_rslidar_points"/>
   <arg name="initial_pose" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/>
@@ -20,6 +21,7 @@
         name="mid360_to_pointcloud2" output="screen">
     <param name="input_topic" value="$(arg mid360_msg_topic)"/>
     <param name="output_topic" value="$(arg parent_pc_topic)"/>
+    <param name="output_frame_id" value="$(arg parent_pc_frame_id)" type="string"/>
   </node>
   <!-- The original input/source is the reference. Registration maps input/target into it. -->
   <node pkg="pointcloud_fusion" type="multi_lidar_calibration_$(arg algorithm)_node"

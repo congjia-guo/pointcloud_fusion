@@ -15,6 +15,7 @@ public:
     std::string input_topic, output_topic;
     private_nh.param<std::string>("input_topic", input_topic, "/livox/lidar");
     private_nh.param<std::string>("output_topic", output_topic, "/livox/lidar_pointcloud2");
+    private_nh.param<std::string>("output_frame_id", output_frame_id_, "");
     publisher_ = nh_.advertise<sensor_msgs::PointCloud2>(output_topic, 10);
     subscriber_ = nh_.subscribe(input_topic, 10, &Mid360Converter::convert, this);
   }
@@ -24,6 +25,10 @@ private:
   {
     sensor_msgs::PointCloud2 cloud;
     cloud.header = input->header;
+    if (!output_frame_id_.empty()) {
+      // Alias only: the configured frame must have the same origin and axes.
+      cloud.header.frame_id = output_frame_id_;
+    }
     cloud.height = 1;
     cloud.is_dense = true;
     sensor_msgs::PointCloud2Modifier modifier(cloud);
@@ -57,6 +62,7 @@ private:
   ros::NodeHandle nh_;
   ros::Subscriber subscriber_;
   ros::Publisher publisher_;
+  std::string output_frame_id_;
 };
 
 int main(int argc, char** argv)

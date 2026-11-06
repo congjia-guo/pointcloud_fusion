@@ -38,11 +38,13 @@ flowchart LR
 | 前侧子雷达 | child_pc_topic2 | /front_rslidar_points | sensor_msgs/PointCloud2 |
 | 右侧子雷达 | child_pc_topic3 | /right_rslidar_points | sensor_msgs/PointCloud2 |
 
-- MID360 转换节点保留原始时间戳和 frame。
-- MID360 驱动的 header.frame_id 应为 mid_laser_link，与标定使用的父坐标系和机器人 TF 对齐。
-- fusion_pc_frame_id 用于校验父雷达 frame，融合节点采用消息中的实际坐标系。
+- 原始 /livox/lidar 的 CustomMsg 消息头为 livox_frame。
+- 已确认 livox_frame 与 mid_laser_link 同原点、同轴，转换节点将输出 PointCloud2 的 frame 统一为 mid_laser_link。
+- 转换保留时间戳和 XYZ 数值，原始 CustomMsg 继续供现有节点使用。
+- fusion_pc_frame_id 同时指定转换输出 frame 和融合父雷达 frame 校验。
+- 独立运行转换节点时，output_frame_id 默认为空，沿用输入 frame；该选项只适用于同原点、同轴的别名。
 - reflectivity 转换为浮点 intensity。
-- 融合点云采用父雷达的时间戳和 frame，默认 frame 为 mid_laser_link。
+- 融合点云采用转换后父雷达的时间戳和 frame，默认 frame 为 mid_laser_link。
 - 四路时间戳需要使用相同的时间基准。
 
 **TF 发布与点云变换**
@@ -54,7 +56,7 @@ mid_laser_link
 └── right_eir_link    ← cpc3_to_ppc
 ~~~
 
-- MID360 输入消息的 header.frame_id 应为 mid_laser_link。
+- 原始 MID360 CustomMsg 使用 livox_frame，进入标定和融合的 PointCloud2 使用 mid_laser_link。
 - 左、前、右三路输入消息的 header.frame_id 应分别为 left_eir_link、front_eir_link、right_eir_link。
 - 外参矩阵将子雷达坐标变换到父雷达坐标，点云和 TF 共用该矩阵。
 - 融合节点沿用原标定代码的 tf::TransformBroadcaster，通过 /tf 发布父子变换。
@@ -107,13 +109,14 @@ rospack find pointcloud_fusion
 **启动 MID360 驱动**
 
 ~~~bash
-roslaunch livox_ros_driver2 msg_MID360.launch msg_frame_id:=mid_laser_link
+roslaunch livox_ros_driver2 msg_MID360.launch
 ~~~
 
 - 如果驱动目录尚无 package.xml，按驱动的 ROS 1 说明准备 package_ROS1.xml。
 - 用整车现有驱动配置启动三个 RoboSense 雷达。
 - rs_driver 是底层库，三个 ROS 点云话题需要整车发布节点提供。
 - 每个新终端都要加载工作空间的 devel/setup.bash。
+- 复用已有转换节点时设置 start_converter:=false，并确认其 PointCloud2 消息头为 mid_laser_link。
 
 > [!IMPORTANT]
 > 默认融合入口会向 lm_bringup 的 PointsCloud2toLaserscan.launch 传入 cloud_topic、scan_topic、target_frame 和 scan_time。
@@ -268,7 +271,7 @@ roslaunch pointcloud_fusion fusion.launch extrinsics_ready:=true
 | start_converter | true | 启动 MID360 消息转换 |
 | broadcast_tf | true | 广播与融合矩阵一致的三路父子 TF |
 | fusion_pc_topic | /pointcloud_fused | 融合输出话题 |
-| fusion_pc_frame_id | mid_laser_link | 校验父雷达 frame |
+| fusion_pc_frame_id | mid_laser_link | 转换输出 frame 和父雷达 frame 校验 |
 | set_params | 正式 false，测试 true | 启用在线调参服务 |
 | open_tuning_gui | 正式 false，测试 true | 打开 rqt 和 RViz |
 | publish_scan | true | 启动点云转扫描 |
@@ -335,6 +338,7 @@ rostopic echo -n 1 /scan/header
 - 四路输入都有持续频率，时间戳非零。
 - 融合点云在静止场景下连续输出。
 - /scan 的发布来源唯一。
+- 转换输出 /livox/lidar_pointcloud2 和融合输出 /pointcloud_fused 的 frame 均为 mid_laser_link。
 - TF 中三个子雷达 frame 的父节点均为 mid_laser_link。
 
 ~~~bash
@@ -371,3 +375,4 @@ rosrun tf tf_echo mid_laser_link right_eir_link
 
 - ICP / NDT 标定源自 multi_lidar_calibration，Apache-2.0 许可见 [LICENSE.Apache-2.0](LICENSE.Apache-2.0)。
 - 单雷达过滤逻辑沿用提供的 pointcloud_filter 的 MIT 标注。
+ 

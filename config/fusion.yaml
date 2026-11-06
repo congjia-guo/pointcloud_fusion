@@ -1,5 +1,5 @@
 fusion_lidar_num: 4
-sync_slop: 0.05
+sync_slop: 0.5
 sync_queue_size: 10
 
 set_params_tf: true
