@@ -39,9 +39,29 @@ flowchart LR
 | 右侧子雷达 | child_pc_topic3 | /right_rslidar_points | sensor_msgs/PointCloud2 |
 
 - MID360 转换节点保留原始时间戳和 frame。
+- MID360 驱动的 header.frame_id 应为 mid_laser_link，与标定使用的父坐标系和机器人 TF 对齐。
+- fusion_pc_frame_id 用于校验父雷达 frame，融合节点采用消息中的实际坐标系。
 - reflectivity 转换为浮点 intensity。
-- 融合点云采用父雷达的时间戳和 frame，默认 frame 为 livox_frame。
+- 融合点云采用父雷达的时间戳和 frame，默认 frame 为 mid_laser_link。
 - 四路时间戳需要使用相同的时间基准。
+
+**TF 发布与点云变换**
+
+~~~text
+mid_laser_link
+├── left_eir_link     ← cpc1_to_ppc
+├── front_eir_link    ← cpc2_to_ppc
+└── right_eir_link    ← cpc3_to_ppc
+~~~
+
+- MID360 输入消息的 header.frame_id 应为 mid_laser_link。
+- 左、前、右三路输入消息的 header.frame_id 应分别为 left_eir_link、front_eir_link、right_eir_link。
+- 外参矩阵将子雷达坐标变换到父雷达坐标，点云和 TF 共用该矩阵。
+- 融合节点沿用原标定代码的 tf::TransformBroadcaster，通过 /tf 发布父子变换。
+- TF 的 parent 为父雷达消息 frame，child 为对应子雷达消息 frame，时间戳采用父雷达点云时间戳。
+- rqt 修改某组外参后，后续同步帧的点云变换和 TF 广播一起更新。
+- 标定节点或 robot_state_publisher 已在发布相同 child frame 时，应只保留一个发布来源；融合端可传 broadcast_tf:=false。
+
 
 ## 2. 三个启动入口
 
@@ -87,7 +107,7 @@ rospack find pointcloud_fusion
 **启动 MID360 驱动**
 
 ~~~bash
-roslaunch livox_ros_driver2 msg_MID360.launch
+roslaunch livox_ros_driver2 msg_MID360.launch msg_frame_id:=mid_laser_link
 ~~~
 
 - 如果驱动目录尚无 package.xml，按驱动的 ROS 1 说明准备 package_ROS1.xml。
@@ -161,7 +181,7 @@ roslaunch pointcloud_fusion fusion_test.launch \
 
 - 默认打开过滤总开关、rqt_reconfigure 和 RViz。
 - 在 RViz 中检查父坐标系下的点云是否重合。
-- 在 rqt 中选择 /pointcloud_fusion 调整过滤参数。
+- 在 rqt 中展开 /pointcloud_fusion，选择 filter 子项，再展开 Filter 分组调整过滤参数。
 - rqt 修改即时用于后续帧，确认后将参数写回配置文件。
 
 ~~~mermaid
@@ -206,6 +226,7 @@ flowchart TD
 
 | rqt 位置 | 调整内容 | 范围 |
 |---|---|---|
+| /pointcloud_fusion/filter | 过滤总开关、距离、地面和裁剪开关 | 见上表 |
 | /pointcloud_fusion/external_bounds | 外框的 XYZ 最小值和最大值 | X、Y ±50 m，Z ±20 m |
 | /pointcloud_fusion/internal_bounds | 内框的 XYZ 最小值和最大值 | X、Y ±50 m，Z ±20 m |
 | /pointcloud_fusion/cpc1_to_ppc | 左雷达到父雷达的外参 | 见下表 |
@@ -214,16 +235,17 @@ flowchart TD
 
 | 外参滑条 | 范围 |
 |---|---|
-| X | 0–1 m |
-| Y | 0–0.5 m |
-| Z | 0–0.3 m |
-| Roll / Pitch / Yaw | 0–3.15 rad |
+| X | −0.5–0.1 m |
+| Y | −0.35–0.35 m |
+| Z | −0.3–0 m |
+| Roll / Pitch / Yaw | −3.15–3.15 rad |
 
 - 默认外框为 X、Y ±50 m，Z ±5 m。
 - 默认内框的六个边界值均为 0。
-- 外参及边界滑条范围沿用原始融合代码。
+- 外参滑条采用指定安装调整范围，XYZ 和三个旋转角的默认值均为 0。
+- 内外边界滑条范围沿用原始融合代码。
 - YAML 实测值超出对应滑条范围时，继续使用 YAML 值，并关闭该组在线调参。
-- 实测外参包含负平移时，可直接编辑 YAML 后重启验证。
+- 实测外参包含负平移时，可在上述范围内直接通过 rqt 调整。
 
 ## 6. 正式融合与 /scan
 
@@ -244,8 +266,9 @@ roslaunch pointcloud_fusion fusion.launch extrinsics_ready:=true
 | config | 包内 config/fusion.yaml | 指定实测外参和融合配置 |
 | extrinsics_ready | false | 确认外参已填写和验证 |
 | start_converter | true | 启动 MID360 消息转换 |
+| broadcast_tf | true | 广播与融合矩阵一致的三路父子 TF |
 | fusion_pc_topic | /pointcloud_fused | 融合输出话题 |
-| fusion_pc_frame_id | livox_frame | 校验父雷达 frame |
+| fusion_pc_frame_id | mid_laser_link | 校验父雷达 frame |
 | set_params | 正式 false，测试 true | 启用在线调参服务 |
 | open_tuning_gui | 正式 false，测试 true | 打开 rqt 和 RViz |
 | publish_scan | true | 启动点云转扫描 |
@@ -266,7 +289,7 @@ roslaunch pointcloud_fusion fusion.launch \
 - 使用支持 publish_scan 参数的 moma_localize.launch。
 - 在原定位启动命令中加入 publish_scan:=false。
 - 由融合入口统一发布 /scan。
-- 设置 scan_target_frame:=body_2d 前，先确认该 frame 与 livox_frame 之间有可用 TF。
+- 设置 scan_target_frame:=body_2d 前，先确认该 frame 与 mid_laser_link 之间有可用 TF。
 
 **配置文件中的同步项**
 
@@ -312,6 +335,13 @@ rostopic echo -n 1 /scan/header
 - 四路输入都有持续频率，时间戳非零。
 - 融合点云在静止场景下连续输出。
 - /scan 的发布来源唯一。
+- TF 中三个子雷达 frame 的父节点均为 mid_laser_link。
+
+~~~bash
+rosrun tf tf_echo mid_laser_link left_eir_link
+rosrun tf tf_echo mid_laser_link front_eir_link
+rosrun tf tf_echo mid_laser_link right_eir_link
+~~~
 - RViz 中墙面重叠处没有明显双影。
 - 分别在车左、前、右放置障碍，扫描方向与实际方位相符。
 
@@ -319,8 +349,8 @@ rostopic echo -n 1 /scan/header
 |---|---|
 | 四路有数据，融合没有输出 | extrinsics_ready、四路时间基准、sync_slop、父雷达 frame |
 | 测试时点云大量减少 | enable_filter、max_range、地面阈值、内外裁剪框 |
-| rqt 中找不到参数 | set_params 是否开启、是否选中 /pointcloud_fusion |
-| 某组外参没有调参项 | YAML 值是否超出原包滑条范围，查看节点警告 |
+| rqt 中找不到过滤参数 | set_params 是否开启、是否选中 /pointcloud_fusion/filter 并展开 Filter 分组 |
+| 某组外参没有调参项 | YAML 值是否超出配置的滑条范围，查看节点警告 |
 | 启动时报 unused args | perception 扫描 launch 是否支持传入的四个参数 |
 | 融合有数据，扫描没有有效回波 | 扫描高度切片、有效距离、目标 frame 和 TF |
 | /scan 的发布来源冲突 | 定位入口的 publish_scan 是否关闭 |

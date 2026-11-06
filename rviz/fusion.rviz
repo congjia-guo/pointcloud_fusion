@@ -15,7 +15,7 @@ Visualization Manager:
       Size (Pixels): 2
       Topic: /pointcloud_fused
   Global Options:
-    Fixed Frame: livox_frame
+    Fixed Frame: mid_laser_link
   Tools:
     - Class: rviz/Interact
     - Class: rviz/MoveCamera

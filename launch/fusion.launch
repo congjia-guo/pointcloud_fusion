@@ -7,8 +7,9 @@
   <arg name="child_pc_topic3" default="/right_rslidar_points"/>
   <arg name="config" default="$(find pointcloud_fusion)/config/fusion.yaml"/>
   <arg name="fusion_pc_topic" default="/pointcloud_fused"/>
-  <arg name="fusion_pc_frame_id" default="livox_frame"/>
+  <arg name="fusion_pc_frame_id" default="mid_laser_link"/>
   <arg name="extrinsics_ready" default="false"/>
+  <arg name="broadcast_tf" default="true"/>
   <arg name="enable_filter" default="false"/>
   <arg name="max_range" default="3.0"/>
   <arg name="ground_z_threshold" default="0.0"/>
@@ -38,6 +39,7 @@
     <param name="topics/fusion_pc_topic" value="$(arg fusion_pc_topic)"/>
     <param name="topics/fusion_pc_frame_id" value="$(arg fusion_pc_frame_id)" type="string"/>
     <param name="extrinsics_ready" value="$(arg extrinsics_ready)"/>
+    <param name="broadcast_tf" value="$(arg broadcast_tf)" type="bool"/>
     <param name="set_dynamic_params" value="$(arg set_params)"/>
     <param name="enable_filter" value="$(arg enable_filter)" type="bool"/>
     <param name="enable_range_filter" value="$(arg enable_range_filter)" type="bool"/>

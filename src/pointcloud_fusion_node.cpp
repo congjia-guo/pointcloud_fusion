@@ -21,6 +21,8 @@
 #include <pointcloud_fusion/FilterConfig.h>
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <tf/transform_broadcaster.h>
+#include <tf/transform_datatypes.h>
 
 namespace
 {
@@ -69,6 +71,7 @@ public:
   {
     private_nh_.param("fusion_lidar_num", lidar_count_, 4);
     private_nh_.param("set_params_tf", transform_points_, true);
+    private_nh_.param("broadcast_tf", broadcast_tf_, true);
     private_nh_.param("extrinsics_ready", extrinsics_ready_, false);
     private_nh_.param("set_dynamic_params", dynamic_params_, false);
     private_nh_.param<std::string>("topics/fusion_pc_frame_id", expected_parent_frame_, "");
@@ -109,11 +112,10 @@ public:
       subscribers_[i].subscribe(nh_, topic, queue_size);
     }
 
-    SyncPolicy policy(queue_size);
-    policy.setMaxIntervalDuration(ros::Duration(sync_slop));
     // Feed unused synchronizer slots from the parent in two- and three-lidar modes.
-    sync_.reset(new Synchronizer(policy, subscribers_[0], subscribers_[1],
+    sync_.reset(new Synchronizer(SyncPolicy(queue_size), subscribers_[0], subscribers_[1],
       subscribers_[lidar_count_ >= 3 ? 2 : 0], subscribers_[lidar_count_ == 4 ? 3 : 0]));
+    sync_->setMaxIntervalDuration(ros::Duration(sync_slop));
     using namespace boost::placeholders;
     sync_->registerCallback(boost::bind(&PointCloudFusion::fuse, this, _1, _2, _3, _4));
   }
@@ -138,9 +140,15 @@ private:
       ROS_WARN("Filter tuning disabled: configured values are outside the slider limits");
       return;
     }
-    filter_server_.reset(new FilterServer(private_nh_));
+    ros::NodeHandle parameters(private_nh_, "filter");
+    // Seed the service from the launch parameters on every start.
+    filters_.__toServer__(parameters);
+    filter_server_.reset(new FilterServer(parameters));
+    ROS_INFO("Filter controls available in rqt at %s (Filter group)",
+             parameters.getNamespace().c_str());
     filter_server_->setCallback([this](Filter& value, uint32_t) {
       filters_ = value;
+      filters_.__toServer__(private_nh_);
       ROS_INFO("Cloud filtering %s, range=%s, ground=%s, max_range=%.3f, ground_z=%.3f",
                value.enable_filter ? "enabled" : "disabled",
                value.enable_range_filter ? "on" : "off",
@@ -206,11 +214,16 @@ private:
     clamped.__clamp__();
     if (clamped.x != pose.x || clamped.y != pose.y || clamped.z != pose.z ||
         clamped.roll != pose.roll || clamped.pitch != pose.pitch || clamped.yaw != pose.yaw) {
-      ROS_WARN("Online tuning disabled for %s: YAML extrinsics are outside the slider limits", name.c_str());
+      ROS_WARN("Online tuning disabled for %s: configured values exceed the compiled slider limits. "
+               "Configured -> clamped: x=%.6f->%.6f, y=%.6f->%.6f, z=%.6f->%.6f, "
+               "roll=%.6f->%.6f, pitch=%.6f->%.6f, yaw=%.6f->%.6f",
+               name.c_str(), pose.x, clamped.x, pose.y, clamped.y, pose.z, clamped.z,
+               pose.roll, clamped.roll, pose.pitch, clamped.pitch, pose.yaw, clamped.yaw);
       return;
     }
     auto& server = extrinsics_servers_[index];
     server.reset(new ExtrinsicsServer(parameters));
+    ROS_INFO("Extrinsic controls available in rqt at %s", parameters.getNamespace().c_str());
     server->setCallback([this, index](Extrinsics& value, uint32_t) {
       transforms_[index] = childToParent(value);
     });
@@ -270,6 +283,17 @@ private:
       filterInputCloud(cloud, ground_filter_[i]);
       if (i > 0 && transform_points_) {
         pcl::transformPointCloud(cloud, cloud, transforms_[i - 1]);
+        if (broadcast_tf_) {
+          // Use the same child-to-parent matrix for the cloud and TF, as in calibration.
+          const Eigen::Matrix4f& transform = transforms_[i - 1];
+          const Eigen::Matrix3f rotation_matrix = transform.block(0, 0, 3, 3);
+          const Eigen::Quaternionf q(rotation_matrix);
+          const tf::Vector3 origin(transform(0, 3), transform(1, 3), transform(2, 3));
+          const tf::Quaternion rotation(q.x(), q.y(), q.z(), q.w());
+          tf_broadcaster_.sendTransform(tf::StampedTransform(
+            tf::Transform(rotation, origin), header.stamp,
+            header.frame_id, messages[i]->header.frame_id));
+        }
       }
       for (const auto& point : cloud) {
         if (keepFusedPoint(point)) {
@@ -287,10 +311,11 @@ private:
   ros::NodeHandle nh_, private_nh_;
   std::array<message_filters::Subscriber<Cloud>, 4> subscribers_;
   ros::Publisher publisher_;
+  tf::TransformBroadcaster tf_broadcaster_;
   std::unique_ptr<Synchronizer> sync_;
   std::string expected_parent_frame_;
   int lidar_count_;
-  bool transform_points_, extrinsics_ready_, dynamic_params_;
+  bool transform_points_, extrinsics_ready_, dynamic_params_, broadcast_tf_;
   std::array<bool, 4> ground_filter_{};
   Filter filters_;
   std::unique_ptr<FilterServer> filter_server_;
