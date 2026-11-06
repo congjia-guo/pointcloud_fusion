@@ -15,9 +15,9 @@ set_params_internal_bounds: true
 
 # Child-to-Livox extrinsics. Replace with the measured values before setting extrinsics_ready.
 # Translation in meters, RPY in radians, rotation Rz(yaw) * Ry(pitch) * Rx(roll).
-cpc1_to_ppc: {x: 0.0, y: 0.0, z: 0.0, roll: 0.0, pitch: 0.0, yaw: 0.0}  # left
-cpc2_to_ppc: {x: 0.0, y: 0.0, z: 0.0, roll: 0.0, pitch: 0.0, yaw: 0.0}  # front
-cpc3_to_ppc: {x: 0.0, y: 0.0, z: 0.0, roll: 0.0, pitch: 0.0, yaw: 0.0}  # right
+cpc1_to_ppc: {x: -0.330279, y: 0.263603, z: -0.15, roll: 0.02, pitch: 0.0171064, yaw: 1.56335}  # left
+cpc2_to_ppc: {x: 0.072,y: 0.0179158, z: -0.174, roll: 3.13901, pitch: 3.14071, yaw: 3.13888}  # front
+cpc3_to_ppc: {x: -0.3119, y: -0.259, z: -0.15, roll: 3.14, pitch: 3.13973, yaw: 1.56118}  # right
 
 # Crop boxes in the parent frame. External keeps the interior. Internal removes it.
 external_bounds: {x_min: -50.0, x_max: 50.0, y_min: -50.0, y_max: 50.0, z_min: -5.0, z_max: 5.0}
